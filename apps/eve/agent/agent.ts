@@ -1,8 +1,31 @@
+import { openrouter } from "@openrouter/ai-sdk-provider";
 import type { LanguageModelMiddleware, ModelMessage } from "ai";
-import { gateway, wrapLanguageModel } from "ai";
+import { wrapLanguageModel } from "ai";
 import { defineAgent, defineDynamic } from "eve";
 
-const DEFAULT_MODEL = "anthropic/claude-sonnet-5";
+// Models are called through OpenRouter (OPENROUTER_API_KEY), not the Vercel AI
+// Gateway. The web chat's picker can still name any OpenRouter model id.
+const DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash";
+
+// The default model's window, which a directly configured provider has to state
+// itself: the gateway metadata that would otherwise supply it is not in play.
+const CONTEXT_WINDOW_TOKENS = 1_048_576;
+
+// Several OpenRouter providers serve this model at different latencies and
+// uptimes; prefer Fireworks rather than take whichever the router picks. Keep
+// fallbacks on: Fireworks rate-limits this model upstream from time to time,
+// and a hard pin turns that into a failed turn instead of a slower one. Only
+// the default is steered - a model chosen in the web picker may not be served
+// by Fireworks at all, so those route normally.
+const DEFAULT_MODEL_PROVIDER = { order: ["fireworks"], allow_fallbacks: true };
+
+/** The default model carries its provider pin; anything else routes on OpenRouter's own rules. */
+function model(id: string) {
+  return id === DEFAULT_MODEL ? openrouter(id, { provider: DEFAULT_MODEL_PROVIDER }) : openrouter(id);
+}
+
+/** Top of the AI SDK's effort scale; every turn runs here unless a turn asks for less. */
+const DEFAULT_REASONING = "xhigh";
 
 const MODEL_ID_PATTERN = /^[\w.-]+\/[\w.:-]+$/;
 
@@ -65,34 +88,32 @@ function parseSettingsMarker(text: string): TurnSettings | null {
 function reasoningMiddleware(reasoning: ReasoningLevel): LanguageModelMiddleware {
   return {
     specificationVersion: "v4",
-    transformParams: async ({ params }) => ({
-      ...params,
-      reasoning: params.reasoning ?? reasoning,
-      providerOptions: {
-        ...params.providerOptions,
-        // eve enables the gateway's automatic prompt caching for string model
-        // ids only; a live model bypasses that path, so re-apply it here.
-        gateway: { caching: "auto", ...params.providerOptions?.gateway },
-      },
-    }),
+    // The agent-level default (DEFAULT_REASONING) is already on params by the
+    // time this runs, so an explicitly requested level has to overwrite it
+    // rather than defer to it - otherwise the picker could only ever raise
+    // effort to a level it is already at.
+    transformParams: async ({ params }) => ({ ...params, reasoning }),
   };
 }
 
 export default defineAgent({
+  modelContextWindowTokens: CONTEXT_WINDOW_TOKENS,
+  reasoning: DEFAULT_REASONING,
   model: defineDynamic({
-    fallback: DEFAULT_MODEL,
+    fallback: model(DEFAULT_MODEL),
     events: {
-      "turn.started": (_event, ctx) => requestedSettings(ctx.messages).model,
-      // Reasoning effort is a per-call AI SDK setting, not a field the dynamic
-      // model selection object accepts, so a requested level rides on a live
-      // gateway model wrapped with default settings. Live models are only
-      // allowed from step.started; with no level requested this returns null
-      // and the turn-scoped string selection (plain prompt-cache path) wins.
+      // Both the picked model and the reasoning effort resolve here. Turn- and
+      // session-scoped selections have to be plain id strings, and eve routes
+      // those through the AI Gateway - the path this agent no longer uses - so
+      // everything rides on a live OpenRouter model, which only step.started
+      // accepts. Returning null leaves the scope unset and the fallback wins.
       "step.started": (_event, ctx) => {
-        const { model, reasoning } = requestedSettings(ctx.messages);
-        if (reasoning === null) return null;
+        const { model: requestedModel, reasoning } = requestedSettings(ctx.messages);
+        if (requestedModel === null && reasoning === null) return null;
+        const selected = model(requestedModel ?? DEFAULT_MODEL);
+        if (reasoning === null) return selected;
         return wrapLanguageModel({
-          model: gateway(model ?? DEFAULT_MODEL),
+          model: selected,
           middleware: reasoningMiddleware(reasoning),
         });
       },

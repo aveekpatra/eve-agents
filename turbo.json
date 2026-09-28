@@ -4,7 +4,7 @@
     "build": {
       "dependsOn": ["^build"],
       "outputs": [".next/**", "!.next/cache/**"],
-      "env": ["DATABASE_URL", "EVE_*", "SUPERMEMORY_*", "TELEGRAM_*", "BLOB_*", "VERCEL_*"]
+      "env": ["DATABASE_URL", "EVE_*", "OPENROUTER_*", "SUPERMEMORY_*", "TELEGRAM_*", "BLOB_*", "VERCEL_*"]
     },
     "typecheck": {
       "dependsOn": ["^build"]
@@ -12,7 +12,7 @@
     "dev": {
       "cache": false,
       "persistent": true,
-      "env": ["DATABASE_URL", "EVE_*", "SUPERMEMORY_*", "TELEGRAM_*", "BLOB_*", "VERCEL_*", "COMPOSIO_*", "AI_GATEWAY_*"]
+      "env": ["DATABASE_URL", "EVE_*", "OPENROUTER_*", "SUPERMEMORY_*", "TELEGRAM_*", "BLOB_*", "VERCEL_*", "COMPOSIO_*"]
     }
   }
 }

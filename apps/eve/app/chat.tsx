@@ -71,7 +71,8 @@ const THREADS_KEY = "eve-web-threads";
 const SEEN_KEY = "eve-web-threads-seen";
 const LEGACY_CHAT_KEY = "eve-web-chat";
 const MODEL_KEY = "eve-web-model";
-const DEFAULT_MODEL_ID = "anthropic/claude-sonnet-5";
+// Matches the agent default in agent/agent.ts.
+const DEFAULT_MODEL_ID = "deepseek/deepseek-v4.1-flash";
 const REASONING_KEY = "eve-web-reasoning";
 
 /**
@@ -1185,7 +1186,7 @@ function ChatApp({ initialView }: { initialView: MainView }) {
             <header className="mb-5">
               <h1 className="text-lg font-semibold">Manage</h1>
               <p className="text-sm text-kumo-subtle">
-                What {AGENT_NAME} does and knows on her own. Create reminders, triggers, and
+                What {AGENT_NAME} does and knows on its own. Create reminders, triggers, and
                 skills by asking in chat.
               </p>
             </header>
@@ -2020,14 +2021,16 @@ function ChatThread({
             </div>
           )}
           <form
-            className="rounded-xl bg-kumo-base p-2 ring ring-kumo-hairline focus-within:ring-kumo-focus/40"
+            // Two-layer composer: a muted shell wrapping a darker field, with the
+            // send control sitting inside the field and the controls row below it.
+            className="rounded-2xl bg-kumo-tint ring ring-kumo-hairline"
             onSubmit={(event) => {
               event.preventDefault();
               sendDraft();
             }}
           >
             {attachments.length > 0 && (
-              <AttachmentGroup className="px-1 pb-2">
+              <AttachmentGroup className="px-3 pt-3">
                 {attachments.map((attachment) => (
                   <Attachment key={attachment.id} size="sm">
                     <AttachmentMedia
@@ -2057,6 +2060,7 @@ function ChatThread({
                 ))}
               </AttachmentGroup>
             )}
+            <div className="relative rounded-2xl bg-kumo-base ring ring-kumo-hairline">
             <InputArea
               ref={composerRef}
               value={draft}
@@ -2065,7 +2069,7 @@ function ChatThread({
               autoResize
               minRows={1}
               maxRows={7}
-              className="w-full rounded-none bg-transparent px-1 text-sm ring-0 focus:ring-0"
+              className="w-full rounded-none bg-transparent p-4 pe-[60px] text-sm leading-[1.35] ring-0 focus:ring-0"
               onChange={(event) => {
                 setDraft(event.target.value);
                 setPaletteDismissed(false);
@@ -2107,6 +2111,28 @@ function ChatThread({
                 }
               }}
             />
+              {isBusy ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  shape="square"
+                  icon={<StopIcon weight="fill" />}
+                  aria-label="Stop"
+                  className="absolute end-2 top-2 size-10 rounded-xl [&_svg]:size-[18px]"
+                  onClick={() => void stopTurn()}
+                />
+              ) : (
+                <Button
+                  type="submit"
+                  variant="ghost"
+                  shape="square"
+                  icon={ArrowUpIcon}
+                  aria-label="Send"
+                  className="absolute end-2 top-2 size-10 rounded-xl [&_svg]:size-[18px]"
+                  disabled={draft.trim().length === 0 && attachments.length === 0}
+                />
+              )}
+            </div>
             <input
               ref={fileInputRef}
               type="file"
@@ -2117,7 +2143,7 @@ function ChatThread({
                 event.target.value = "";
               }}
             />
-            <div className="mt-1 flex items-center gap-1">
+            <div className="flex items-center gap-1 px-2 py-1.5">
               <Button
                 type="button"
                 variant="ghost"
@@ -2148,31 +2174,12 @@ function ChatThread({
                     onClick={toggleVoice}
                   />
                 )}
-                {isBusy ? (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    shape="circle"
-                    icon={<StopIcon weight="fill" />}
-                    aria-label="Stop"
-                    onClick={() => void stopTurn()}
-                  />
-                ) : (
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    shape="circle"
-                    icon={ArrowUpIcon}
-                    aria-label="Send"
-                    disabled={draft.trim().length === 0 && attachments.length === 0}
-                  />
-                )}
+                <p className="pe-2 ps-1 text-[11px] text-kumo-subtle/60">
+                  {threadUsage.inputTokens > 0 ? `${formatUsage(threadUsage)} this thread` : ""}
+                </p>
               </div>
             </div>
           </form>
-          <p className="h-6 pt-2 text-center text-[11px] text-kumo-subtle">
-            {threadUsage.inputTokens > 0 ? `${formatUsage(threadUsage)} this thread` : "\u00A0"}
-          </p>
         </footer>
       </div>
     </main>

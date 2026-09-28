@@ -2,10 +2,11 @@ import { defineTool } from "eve/tools";
 import { z } from "zod";
 
 import { listReminders } from "../lib/reminders-db";
+import { ownerName } from "../lib/owner";
 
 export default defineTool({
   description:
-    "List active reminders and recurring scheduled tasks: id, prompt, next fire time, and cadence. Use when Micky asks what's scheduled, or to find an id to cancel.",
+    `List active reminders and recurring scheduled tasks: id, prompt, next fire time, and cadence. Use when ${ownerName()} asks what's scheduled, or to find an id to cancel.`,
   inputSchema: z.object({}),
   async execute() {
     const reminders = await listReminders();
